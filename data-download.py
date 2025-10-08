@@ -52,10 +52,9 @@ def download_wms_layer(layer_key, start_date, end_date, bbox, output_dir, interv
         
         current_date += timedelta(days=interval_days)
 
-# Test usage: Run for one layer first
+
 if __name__ == '__main__':
     edo_bbox = '5.00,5.74,6.66,7.60'  # Your provided coords
     test_dir = './data/edo_test'
     for layer in layer_keys:
-        download_wms_layer(layer, '2020-01-01', '2024-01-01', edo_bbox, test_dir + f'{test_dir}/{layer}')
-    # Then add: download_wms_layer('disturbance_annual', ...) etc. 
+        download_wms_layer(layer, '2020-01-01', '2024-01-01', edo_bbox, f'{test_dir}/{layer}')
