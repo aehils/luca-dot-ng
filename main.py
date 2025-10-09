@@ -18,7 +18,7 @@ def startEarthEngine():
     else:
         print("\n✓ Earth Engine running :)\n")
 
-def createGridPoints(bbox, grid_res=0.05):
+def createGridPoints(bbox, grid_res=0.05, buffer_m=250):
     min_long, min_lat, max_long, max_lat = bbox
     longs = np.arange(min_long, max_long, grid_res)
     lats = np.arange(min_lat, max_lat, grid_res)
@@ -32,10 +32,18 @@ def createGridPoints(bbox, grid_res=0.05):
     print(f"  Grid: {len(longs)} cols x {len(lats)} rows")
     print(f"  Resolution: {grid_res}° (~{grid_res * 111:.1f} km at equator)\n")
     
-    return points.tolist()
+    features = [
+        ee.Feature(
+            ee.Geometry.Point(longitude, latitude).buffer(buffer_m),
+            {'id': i, 'long': longitude, 'lat': latitude}
+        )
+        for i, (longitude, latitude) in enumerate(points)
+    ]
+
+    return ee.FeatureCollection(features)
 
 def getMuiltiSensorData(bbox, start_date, end_date,
-                        grid_res=0.05, scale=500,
+                        grid_res=0.01, scale=500,
                         ndvi_thres=-0.02, include_elevation=True):
     region = ee.Geometry.Rectangle(bbox)
     start = ee.Date(start_date)
@@ -45,12 +53,7 @@ def getMuiltiSensorData(bbox, start_date, end_date,
     # resolution is given by `grid_res` in deg (0.05 = ~50km at equator)
     try:
         print("Building grid on bbox...")
-        grid = createGridPoints(bbox, grid_res)
-        features = [
-            ee.Feature(ee.Geometry.Point(long,lat), {'id':i})
-            for i, (long, lat) in enumerate(grid)
-            ]
-        samples = ee.FeatureCollection(features)
+        samples = createGridPoints(bbox, grid_res)
         
     except Exception as err:
         print(f"Error creating grid::- {err}")
@@ -95,10 +98,26 @@ def getMuiltiSensorData(bbox, start_date, end_date,
     # Optional: Elevation (static)
     if include_elevation:
         elevation = ee.Image('USGS/SRTMGL1_003').select('elevation')
-        
     
-    
+    # OKAY, let actually start sampling ey?
+    # we'll sample static and dynamic layers differently
 
+    # static layer sampling
+    static_layers = ee.Image.cat([
+        elevation.rename('elevation'),
+        forest_2000.rename('tree_cover_2000'),
+        forest_loss.rename('forest_loss'),
+        loss_year.rename('loss_year'),
+        ])
+    
+    # temporal layer sampling
+    temporal_layers = ee.Image.cat([
+        modis_ndvi.select(['NDVI', 'EVI']).mean().rename(['ndvi_mean', 'evi_mean']),
+        modis_lst.select('LST_Day_1km').mean().multiply(0.02).rename('lst_mean_k'),
+        precip.select('precipitation').sum().rename('precip_total_mm'),
+        s1.select(['VV','VH']).mean().rename(['sar_vv_mean', 'sar_vh_mean'])
+    ])
+    
 
 if __name__ == '__main__':
     startEarthEngine()
@@ -108,3 +127,4 @@ if __name__ == '__main__':
         start_date= '2020-01-01',
         end_date= '2024-01-01'
     )
+
