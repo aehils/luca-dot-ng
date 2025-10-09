@@ -2,6 +2,7 @@
 
 import sys
 import ee
+import geemap
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -35,7 +36,7 @@ def createGridPoints(bbox, grid_res=0.05):
 
 def getMuiltiSensorData(bbox, start_date, end_date,
                         grid_res=0.05, scale=500,
-                        ndvi_thres=-0.02, elevation=True):
+                        ndvi_thres=-0.02, include_elevation=True):
     region = ee.Geometry.Rectangle(bbox)
     start = ee.Date(start_date)
     end = ee.Date(end_date)
@@ -49,19 +50,53 @@ def getMuiltiSensorData(bbox, start_date, end_date,
             ee.Feature(ee.Geometry.Point(long,lat), {'id':i})
             for i, (long, lat) in enumerate(grid)
             ]
-        
         samples = ee.FeatureCollection(features)
-        print(f"Sample Grid converted to Earth Engine FeatureCollection")
-        
-        # Verify the collection was created
-        n_samples = samples.size().getInfo()
-        print(f"{n_samples} samples ready.\n")
-        return samples
         
     except Exception as err:
         print(f"Error creating grid::- {err}")
         return None
+    else:
+        print(f"Sample Grid converted to Earth Engine FeatureCollection")
+        # Verify the collection was created
+        n_samples = samples.size().getInfo()
+        print(f"{n_samples} samples ready.\n")
 
+    # Dataset 1: MODIS NDVI (16-day, with quality filter)
+    modis_ndvi = (ee.ImageCollection('MODIS/061/MOD13A1')
+                  .filterDate(start, end)
+                  .filter(ee.Filter.lt('SummaryQA', 2))  # Good quality pixels
+                  .select(['NDVI', 'EVI']))
+    
+    # Dataset 2: MODIS Land Surface Temperature (8-day)
+    modis_lst = (ee.ImageCollection('MODIS/061/MOD11A2')
+                 .filterDate(start, end)
+                 .select(['LST_Day_1km']))
+    
+    # Dataset 3: Precipitation (daily, then aggregate)
+    precip = (ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY')
+              .filterDate(start, end)
+              .select(['precipitation']))
+    
+    # Dataset 4: Sentinel-1 SAR (for forest structure)
+    s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
+          .filterBounds(region)
+          .filterDate(start, end)
+          .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+          .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))  # Consistent orbit
+          .select(['VV', 'VH']))
+    
+    # Dataset 5: Hansen Forest Change (static baseline)
+    hansen = ee.Image('UMD/hansen/global_forest_change_2023_v1_11')
+    forest_2000 = hansen.select('treecover2000')
+    forest_loss = hansen.select('loss')
+    forest_gain = hansen.select('gain')
+    loss_year = hansen.select('lossyear')  # For temporal labeling
+    
+    # Optional: Elevation (static)
+    if include_elevation:
+        elevation = ee.Image('USGS/SRTMGL1_003').select('elevation')
+        
+    
     
 
 
