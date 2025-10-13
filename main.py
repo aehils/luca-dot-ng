@@ -5,7 +5,12 @@ import ee
 import geemap
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+
+from csv_exporting import df2csv
+from  monthly_composites import compose
+from process_data import extract_features, makeNumeric
 
 def startEarthEngine():
     # authenticate Earth Engine and initialise API
@@ -42,8 +47,8 @@ def createGridPoints(bbox, grid_res=0.05, buffer_m=250):
 
     return ee.FeatureCollection(features)
 
-def getMuiltiSensorData(bbox, start_date, end_date,
-                        grid_res=0.01, scale=500,
+def getMultiSensorData(bbox, start_date, end_date,
+                        grid_res=0.05, scale=500,
                         ndvi_thres=-0.02, include_elevation=True):
     region = ee.Geometry.Rectangle(bbox)
     start = ee.Date(start_date)
@@ -60,71 +65,57 @@ def getMuiltiSensorData(bbox, start_date, end_date,
         return None
     else:
         print(f"Sample Grid converted to Earth Engine FeatureCollection")
-        # Verify the collection was created
-        n_samples = samples.size().getInfo()
-        print(f"{n_samples} samples ready.\n")
 
-    # Dataset 1: MODIS NDVI (16-day, with quality filter)
-    modis_ndvi = (ee.ImageCollection('MODIS/061/MOD13A1')
-                  .filterDate(start, end)
-                  .filter(ee.Filter.lt('SummaryQA', 2))  # Good quality pixels
-                  .select(['NDVI', 'EVI']))
     
-    # Dataset 2: MODIS Land Surface Temperature (8-day)
-    modis_lst = (ee.ImageCollection('MODIS/061/MOD11A2')
-                 .filterDate(start, end)
-                 .select(['LST_Day_1km']))
-    
-    # Dataset 3: Precipitation (daily, then aggregate)
-    precip = (ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY')
-              .filterDate(start, end)
-              .select(['precipitation']))
-    
-    # Dataset 4: Sentinel-1 SAR (for forest structure)
-    s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-          .filterBounds(region)
-          .filterDate(start, end)
-          .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
-          .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))  # Consistent orbit
-          .select(['VV', 'VH']))
-    
-    # Dataset 5: Hansen Forest Change (static baseline)
-    hansen = ee.Image('UMD/hansen/global_forest_change_2023_v1_11')
-    forest_2000 = hansen.select('treecover2000')
-    forest_loss = hansen.select('loss')
-    forest_gain = hansen.select('gain')
-    loss_year = hansen.select('lossyear')  # For temporal labeling
-    
-    # Optional: Elevation (static)
-    if include_elevation:
-        elevation = ee.Image('USGS/SRTMGL1_003').select('elevation')
-    
-    # OKAY, let actually start sampling ey?
-    # we'll sample static and dynamic layers differently
+    # Convert to list and download
+    data_points = compose(start_date, end_date, region, 
+                          scale, include_elevation, samples)
 
-    # static layer sampling
-    static_layers = ee.Image.cat([
-        elevation.rename('elevation'),
-        forest_2000.rename('tree_cover_2000'),
-        forest_loss.rename('forest_loss'),
-        loss_year.rename('loss_year'),
-        ])
-    
-    # temporal layer sampling
-    temporal_layers = ee.Image.cat([
-        modis_ndvi.select(['NDVI', 'EVI']).mean().rename(['ndvi_mean', 'evi_mean']),
-        modis_lst.select('LST_Day_1km').mean().multiply(0.02).rename('lst_mean_k'),
-        precip.select('precipitation').sum().rename('precip_total_mm'),
-        s1.select(['VV','VH']).mean().rename(['sar_vv_mean', 'sar_vh_mean'])
-    ])
-    
+    return data_points
 
 if __name__ == '__main__':
     startEarthEngine()
 
-    df = getMuiltiSensorData(
-        bbox = [5.00, 5.74, 6.66, 7.60],
-        start_date= '2020-01-01',
-        end_date= '2024-01-01'
-    )
+    try:
+        raw_data_points = getMultiSensorData(
+            bbox = [5.00, 5.74, 6.66, 7.60],
+            start_date= '2020-01-01',
+            end_date= '2024-01-31'
+        )
+        raw_store = df2csv(raw_data_points, 
+                           'test-a', 'data/edo_test')
+
+    except Exception as e:
+        print(f"Could not take data samples::- {e}")
+    else:
+        print("Samples collected successfully")
+
+    featured_data_points = extract_features(
+        raw_data_points)
+    pathTo_featured_data_points = df2csv(
+        featured_data_points,
+        'test-b', 'data/edo_test')
+    
+    try:
+        makeNumeric(featured_data_points)
+    except Exception as e:
+        print(f"Could not makeNumeric:: - {e}")
+    print(featured_data_points.info(), "\n")
+    print(featured_data_points.describe(), "\n")
+    print(featured_data_points.isnull().sum(), "\n")
+    print(featured_data_points['forest_loss'].value_counts())
+    print(featured_data_points['tree_cover_2000'].value_counts(sort=False))
+    
+
+    featured_data_points.hist(bins=50, figsize=(20,15))
+    plt.show()
+
+
+
+
+
+
+    
+    
+
 
