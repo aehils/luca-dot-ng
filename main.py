@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
 from csv_exporting import df2csv
-from  monthly_composites import compose
-from process_data import extract_features, makeNumeric
+from  month_composite import compose
+import process_data as p
 
 def startEarthEngine():
     # authenticate Earth Engine and initialise API
@@ -76,9 +76,12 @@ def getMultiSensorData(bbox, start_date, end_date,
 if __name__ == '__main__':
     startEarthEngine()
 
+    edo_bbox = [5.00, 5.74, 6.66, 7.60]
+
+
     try:
         raw_data_points = getMultiSensorData(
-            bbox = [5.00, 5.74, 6.66, 7.60],
+            edo_bbox,
             start_date= '2020-01-01',
             end_date= '2024-01-31'
         )
@@ -90,22 +93,37 @@ if __name__ == '__main__':
     else:
         print("Samples collected successfully")
 
-    featured_data_points = extract_features(
+    featured_data_points = p.extract_features(
         raw_data_points)
     pathTo_featured_data_points = df2csv(
         featured_data_points,
         'test-b', 'data/edo_test')
     
+    columns =['ndvi_mean', 'evi_mean', 'ndvi_min', 'ndvi_std', 
+              'lst_mean_k', 'lst_std', 'precip_total_mm']
     try:
-        makeNumeric(featured_data_points)
+        # p.makeNumeric(featured_data_points)
+        interpolated_points = p.temporal_interpolate(
+            featured_data_points, columns)
+        pathTo_interpolated_points = df2csv(
+            interpolated_points,
+            'test-c', 'data/edo_test')
     except Exception as e:
         print(f"Could not makeNumeric:: - {e}")
-    print(featured_data_points.info(), "\n")
-    print(featured_data_points.describe(), "\n")
-    print(featured_data_points.isnull().sum(), "\n")
-    print(featured_data_points['forest_loss'].value_counts())
-    print(featured_data_points['tree_cover_2000'].value_counts(sort=False))
+
+    # print("'Featured' points::::::::::::")
+    # print(featured_data_points.info(), "\n")
+    # print(featured_data_points.describe(), "\n")
+    # print(featured_data_points.isnull().sum(), "\n")
+
+    # print("FEATURED:: SOME FOREST LOSS AND TREE COVER INFO, VALUE COUNTS:::")
+    # print(featured_data_points['forest_loss'].value_counts())
+    # print(featured_data_points['tree_cover_2000'].value_counts(sort=False, ascending=True))
     
+    print("DATA AFTER INTERPOLATION:::::::::::::")
+    print(interpolated_points.info(), "\n")
+    print(interpolated_points.describe(), "\n")
+    print(interpolated_points.isnull().sum(), "\n")
 
     featured_data_points.hist(bins=50, figsize=(20,15))
     plt.show()
