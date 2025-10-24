@@ -6,9 +6,13 @@ import geemap
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+import seaborn as sns
 
-from csv_exporting import df2csv
+from pandas.plotting import scatter_matrix
+from datetime import datetime, timedelta
+from sklearn.model_selection import StratifiedShuffleSplit
+
+from file_handling import df2csv
 from  month_composite import compose
 import process_data as p
 
@@ -66,74 +70,49 @@ def getMultiSensorData(bbox, start_date, end_date,
     else:
         print(f"Sample Grid converted to Earth Engine FeatureCollection")
 
-    
     # Convert to list and download
     data_points = compose(start_date, end_date, region, 
                           scale, include_elevation, samples)
 
     return data_points
 
-if __name__ == '__main__':
-    startEarthEngine()
 
+if __name__ == '__main__':
+
+    startEarthEngine()
     edo_bbox = [5.00, 5.74, 6.66, 7.60]
 
+    # get mulltiSensor data commented out to reduce 
+    #  computational overload during testsing
+    #  will instead...
+    raw_data = pd.read_csv('data/edo_test/test-a.csv')
+    # try:
+    #     raw_data = getMultiSensorData(
+    #         edo_bbox,
+    #         start_date= '2020-01-01',
+    #         end_date= '2024-01-31'
+    #     )
+    #     pathTo_raw_data = df2csv(raw_data_points, 
+    #                        'test-a', 'data/edo_test')
+    # except Exception as e:
+    #     print(f"Could not take data samples::::: \n {e}")
+    # else:
+    # print("Samples collected successfully")
 
-    try:
-        raw_data_points = getMultiSensorData(
-            edo_bbox,
-            start_date= '2020-01-01',
-            end_date= '2024-01-31'
-        )
-        raw_store = df2csv(raw_data_points, 
-                           'test-a', 'data/edo_test')
+    # categorise forest_loss by quartiles using pd.qcut
+    raw_data['loss_cat_q'] = pd.qcut(raw_data['forest_loss'], 
+                                     q=5, 
+                                     duplicates='drop')
+    # raw_data['loss_cat_q'] = raw_data['loss_cat_q'].cat.codes + 1
 
-    except Exception as e:
-        print(f"Could not take data samples::- {e}")
-    else:
-        print("Samples collected successfully")
+    # here im splitting off a portion of the data for testing later
+        # but because the data is skewed, i want to make sure the split
+        # is representative of the popution, so stratified split
+    split = StratifiedShuffleSplit(n_splits=1, train_size=0.2, random_state=42)
+    for train_idx, test_idx in split.split(raw_data, raw_data['loss_cat_q']):
+        strat_trainingSet = raw_data.loc[train_idx]
+        strat_trainingSet = raw_data.loc[test_idx]
 
-    featured_data_points = p.extract_features(
-        raw_data_points)
-    pathTo_featured_data_points = df2csv(
-        featured_data_points,
-        'test-b', 'data/edo_test')
-    
-    columns =['ndvi_mean', 'evi_mean', 'ndvi_min', 'ndvi_std', 
-              'lst_mean_k', 'lst_std', 'precip_total_mm']
-    try:
-        # p.makeNumeric(featured_data_points)
-        interpolated_points = p.temporal_interpolate(
-            featured_data_points, columns)
-        pathTo_interpolated_points = df2csv(
-            interpolated_points,
-            'test-c', 'data/edo_test')
-    except Exception as e:
-        print(f"Could not makeNumeric:: - {e}")
+    forest = strat_trainingSet.copy()
 
-    # print("'Featured' points::::::::::::")
-    # print(featured_data_points.info(), "\n")
-    # print(featured_data_points.describe(), "\n")
-    # print(featured_data_points.isnull().sum(), "\n")
-
-    # print("FEATURED:: SOME FOREST LOSS AND TREE COVER INFO, VALUE COUNTS:::")
-    # print(featured_data_points['forest_loss'].value_counts())
-    # print(featured_data_points['tree_cover_2000'].value_counts(sort=False, ascending=True))
-    
-    print("DATA AFTER INTERPOLATION:::::::::::::")
-    print(interpolated_points.info(), "\n")
-    print(interpolated_points.describe(), "\n")
-    print(interpolated_points.isnull().sum(), "\n")
-
-    featured_data_points.hist(bins=50, figsize=(20,15))
     plt.show()
-
-
-
-
-
-
-    
-    
-
-
