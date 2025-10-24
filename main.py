@@ -123,10 +123,11 @@ if __name__ == '__main__':
     columns =['ndvi', 'evi', 'ndvi_std', 
               'lst_k', 'lst_std', 'precip_total_mm']
     
-    forest.newFeatures().temporal_interpolate(columns=columns).tidy()
+    forest.newFeatures()
     
     forest2 = df2csv(forest.df,
                      'forest2', './data')
+    # .temporal_interpolate(columns=columns).tidy()
 
     # look for correlation
     non_numeric_cols = ['date', 'months_until_loss', 'loss_year']
