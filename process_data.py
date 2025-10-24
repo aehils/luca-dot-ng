@@ -48,8 +48,7 @@ class Dataset():
                 self.df.groupby('id')['ndvi']
                 .rolling(window=3, min_periods=1)
                 .mean()
-                .reset_index(0, drop=True)
-                )
+                .reset_index(0, drop=True))
             
         if 'precip_total_mm' in self.df.columns:
             self.df['precip_lag1'] = self.df.groupby('id')['precip_total_mm'].shift(1)
@@ -57,11 +56,12 @@ class Dataset():
             # also computing an index for dryness; rainfall against temp
             self.df['dryness'] = self.df.apply(
             lambda row: row['precip_total_mm'] / row['lst_k'] if row['lst_k'] > 0 else 0,
-            axis=1
-        )
+            axis=1)
+            self.df.drop('precip_lag1', axis=1, inplace=True)
             
         if 'sar_vv' and 'sar_vh' in self.df.columns:
-            self.df['sar_vh_vv_ratio'] = self.df['sar_vh'] / self.df['sar_vv']
+            epsilon = 1e-6
+            self.df['sar_ratio_db'] = 10 * np.log10(self.df['sar_vh'] / (self.df['sar_vv'] + epsilon))
 
         # compute new feature: forest_health
         self.df['forest_health'] = (0.5 * self.df['ndvi'] + 
@@ -70,7 +70,7 @@ class Dataset():
         # new feature for spatial proximity to forest loss
         self.dist_from_loss()
 
-        self.df.dropna()
+        # self.df.dropna()
 
         return self
     
