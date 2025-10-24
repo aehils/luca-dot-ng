@@ -14,6 +14,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 from file_handling import df2csv
 from  month_composite import compose
+from process_data import Dataset
 import process_data as p
 
 def startEarthEngine():
@@ -108,11 +109,38 @@ if __name__ == '__main__':
     # here im splitting off a portion of the data for testing later
         # but because the data is skewed, i want to make sure the split
         # is representative of the popution, so stratified split
-    split = StratifiedShuffleSplit(n_splits=1, train_size=0.2, random_state=42)
+    split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
     for train_idx, test_idx in split.split(raw_data, raw_data['loss_cat_q']):
         strat_trainingSet = raw_data.loc[train_idx]
-        strat_trainingSet = raw_data.loc[test_idx]
+        strat_testingSet = raw_data.loc[test_idx]
+    for set_ in (strat_trainingSet, strat_testingSet):
+        set_.drop('loss_cat_q', axis=1, inplace=True)
 
-    forest = strat_trainingSet.copy()
+    forest = Dataset(strat_trainingSet.copy())
+    forest_csv = df2csv(forest.df,
+                        'forest', './data')
+    
+    columns =['ndvi', 'evi', 'ndvi_std', 
+              'lst_k', 'lst_std', 'precip_total_mm']
+    
+    forest.newFeatures().temporal_interpolate(columns=columns).tidy()
+    
+    forest2 = df2csv(forest.df,
+                     'forest2', './data')
+
+    # look for correlation
+    non_numeric_cols = ['date', 'months_until_loss', 'loss_year']
+    forest_n = forest.df.drop(columns=non_numeric_cols)
+    
+    corr_matrix = forest_n.corr()
+    print(corr_matrix["forest_loss"].sort_values(ascending=False), "\n\n")
 
     plt.show()
+
+    
+    
+    print(forest.df.info(), "\n")
+    print(forest.df.isnull().sum(), "\n")
+
+    q = df2csv(strat_testingSet,
+               'stat_test', './data')
