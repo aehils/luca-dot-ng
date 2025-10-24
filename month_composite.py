@@ -92,15 +92,14 @@ def compose(start_date, end_date, region,
             print(f"  WARNING: No NDVI data for this period")
 
         temporal_layers = ee.Image.cat([
-            modis_ndvi_month.select(['NDVI', 'EVI']).mean().rename(['ndvi_mean', 'evi_mean']),
-            modis_lst_month.select('LST_Day_1km').mean().multiply(0.02).rename('lst_mean_k'),
+            modis_ndvi_month.select(['NDVI', 'EVI']).mean().rename(['ndvi', 'evi']),
+            modis_lst_month.select('LST_Day_1km').mean().multiply(0.02).rename('lst_k'),
             precip_month.select('precipitation').sum().rename('precip_total_mm'),
-            s1_month.select(['VV','VH']).mean().rename(['sar_vv_mean', 'sar_vh_mean'])
+            s1_month.select(['VV','VH']).mean().rename(['sar_vv', 'sar_vh'])
         ])
         
         variability_layers = ee.Image.cat([
             modis_ndvi_month.select('NDVI').reduce(ee.Reducer.stdDev()).rename('ndvi_std'),
-            modis_ndvi_month.select('NDVI').min().rename('ndvi_min'),
             modis_lst_month
                 .select('LST_Day_1km').reduce(ee.Reducer.stdDev())
                 .rename('lst_std'),
@@ -151,14 +150,12 @@ def compose(start_date, end_date, region,
 
     # Scale after (e.g., df['ndvi_mean'] *= 0.0001)
     # Scale after - proper conditional handling
-    if 'ndvi_mean' in df.columns:
-        df['ndvi_mean'] *= 0.0001
-    if 'evi_mean' in df.columns:
-        df['evi_mean'] *= 0.0001
+    if 'ndvi' in df.columns:
+        df['ndvi'] *= 0.0001
+    if 'evi' in df.columns:
+        df['evi'] *= 0.0001
     if 'ndvi_std' in df.columns:
         df['ndvi_std'] *= 0.0001
-    if 'ndvi_min' in df.columns:
-        df['ndvi_min'] *= 0.0001
     if 'lst_std' in df.columns:
         df['lst_std'] *= 0.02
     
