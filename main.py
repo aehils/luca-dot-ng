@@ -116,32 +116,16 @@ if __name__ == '__main__':
     for set_ in (strat_trainingSet, strat_testingSet):
         set_.drop('loss_cat_q', axis=1, inplace=True)
 
-    forest = Dataset(strat_trainingSet.copy())
+    forest = Dataset(strat_trainingSet.copy()) # get cracking w the training set
     forest_csv = df2csv(forest.df,
                         'forest', './data')
+    
     
     columns =['ndvi', 'evi', 'ndvi_std', 
               'lst_k', 'lst_std', 'precip_total_mm']
     
-    forest.newFeatures()
+    forest.newFeatures().temporal_interpolate(columns=columns).tidy()
     
     forest2 = df2csv(forest.df,
                      'forest2', './data')
-    # .temporal_interpolate(columns=columns).tidy()
 
-    # look for correlation
-    non_numeric_cols = ['date', 'months_until_loss', 'loss_year']
-    forest_n = forest.df.drop(columns=non_numeric_cols)
-    
-    corr_matrix = forest_n.corr()
-    print(corr_matrix["forest_loss"].sort_values(ascending=False), "\n\n")
-
-    plt.show()
-
-    
-    
-    print(forest.df.info(), "\n")
-    print(forest.df.isnull().sum(), "\n")
-
-    q = df2csv(strat_testingSet,
-               'stat_test', './data')
