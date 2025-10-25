@@ -22,6 +22,7 @@ class Dataset():
         # similarly, drop rows where sar_vv or sar_vh is nan
         if 'sar_vv' in self.df.columns and 'sar_vh' in self.df.columns:
             self.df = self.df.dropna(subset=['sar_vv', 'sar_vh'])
+            
 
     def newFeatures(self):
         
@@ -66,8 +67,7 @@ class Dataset():
         self.df.drop(['sar_vv', 'sar_vh'])
 
         return self
-    
-    
+
 
     def assert_types(self):
         # make date datetime
